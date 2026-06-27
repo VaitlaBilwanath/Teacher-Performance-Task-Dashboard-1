@@ -1,0 +1,256 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id               String         @id @default(uuid())
+  email            String         @unique
+  password         String
+  role             String
+  name             String
+  phone            String?
+  isActive         Boolean        @default(true)
+  isEmailVerified  Boolean        @default(false)
+  failedLoginAttempts Int         @default(0)
+  lockoutUntil     DateTime?
+  deletedAt        DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  
+  teacher          Teacher?
+  parent           Parent?
+  sentMessages     Message[]      @relation("SentMessages")
+  receivedMessages Message[]      @relation("ReceivedMessages")
+  notifications    Notification[]
+  passwordResetTokens   PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  sessions              Session[]
+}
+
+model Teacher {
+  id              String     @id @default(uuid())
+  userId          String     @unique
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avatar          String?
+  teacherRegNo    String?    @unique
+  employeeId      String?    @unique
+  qrCodeUrl       String?
+  shiftTime       String?
+  performance     Float      @default(100.0)
+  attendance      Float      @default(100.0)
+  tasksCompleted  Int        @default(0)
+  complianceScore Float      @default(100.0)
+  classroomId     String?
+  classroom       Classroom? @relation(fields: [classroomId], references: [id])
+  tasks           Task[]
+  attendances     TeacherAttendance[]
+  dutyRosters     DutyRoster[]
+  isActive        Boolean    @default(true)
+  deletedAt       DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+model Parent {
+  id            String     @id @default(uuid())
+  userId        String     @unique
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentContact String?
+  students      Student[]
+  isActive      Boolean    @default(true)
+  deletedAt     DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+model Student {
+  id          String       @id @default(uuid())
+  name        String
+  avatar      String?
+  age         String?
+  studentRegNo String?     @unique
+  admissionNo String?      @unique
+  qrCodeUrl   String?
+  mood        String?      @default("Happy")
+  photoUrl    String?
+  milestones  String?      @default("[]") // [{ name: "string", progress: 85 }]
+  photos      String?      @default("[]") // [{ url: "string", caption: "string" }]
+  timeline    String?      @default("[]") // [{ time: "string", event: "string", desc: "string" }]
+  notes       String?      @default("[]") // [{ date: "string", author: "string", content: "string", mood: "string" }]
+  classroomId String?
+  classroom   Classroom?   @relation(fields: [classroomId], references: [id])
+  parentId    String?
+  parent      Parent?      @relation(fields: [parentId], references: [id])
+  attendances Attendance[]
+  routines    DailyRoutine[]
+  isActive    Boolean      @default(true)
+  deletedAt   DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Classroom {
+  id         String     @id @default(uuid())
+  name       String     @unique
+  roomNumber String
+  teachers   Teacher[]
+  students   Student[]
+  isActive   Boolean    @default(true)
+  deletedAt  DateTime?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model Attendance {
+  id        String           @id @default(uuid())
+  date      DateTime         // Normalized to midnight UTC (00:00:00.000Z)
+  status    String
+  studentId String
+  student   Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@unique([studentId, date])
+}
+
+model DailyRoutine {
+  id            String   @id @default(uuid())
+  date          DateTime @default(now())
+  breakfast     String   // "full" | "partial" | "none"
+  lunch         String   // "full" | "partial" | "none"
+  snacks        String   // "full" | "partial" | "none"
+  waterCups     Int
+  napTime       String   // "30 Mins" | "1 Hour" | etc.
+  pottyCheck    Boolean
+  activityNotes String?
+  studentId     String
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Task {
+  id         String     @id @default(uuid())
+  title      String
+  desc       String
+  status     String @default("TODO")
+  priority   String     // "high" | "medium" | "low"
+  dueDate    String     // "YYYY-MM-DD"
+  assigneeId String?
+  assignee   Teacher?   @relation(fields: [assigneeId], references: [id])
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model Announcement {
+  id            String   @id @default(uuid())
+  title         String
+  content       String
+  priority      String   // "high" | "medium" | "low"
+  createdByName String
+  date          String   // "YYYY-MM-DD"
+  scheduledTime String   @default("Immediate")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Message {
+  id         String   @id @default(uuid())
+  content    String
+  senderId   String
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  type      String   // "success" | "info" | "warning" | "danger"
+  isRead    Boolean  @default(false)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PasswordResetToken {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdIp  String?
+  createdAt  DateTime @default(now())
+}
+
+model EmailVerificationToken {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdIp  String?
+  createdAt  DateTime @default(now())
+}
+
+model Session {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String?
+  userAgent  String?
+  ipAddress  String?
+  expiresAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  role       String?
+  action     String
+  module     String
+  recordId   String?
+  oldValues  String?
+  newValues  String?
+  ipAddress  String?
+  timestamp  DateTime @default(now())
+}
+
+model TeacherAttendance {
+  id        String           @id @default(uuid())
+  date      DateTime         // Normalized to midnight UTC (00:00:00.000Z)
+  status    String
+  teacherId String
+  teacher   Teacher          @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@unique([teacherId, date])
+}
+
+model DutyRoster {
+  id        String   @id @default(uuid())
+  date      DateTime // Normalized to midnight UTC
+  teacherId String
+  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  room      String
+  shift     String
+  className String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([teacherId, date])
+}

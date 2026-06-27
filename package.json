@@ -1,0 +1,11 @@
+{
+  "name": "teacher-performance-dashboard-parent",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --prefix \"Teacher Performance & Task Dashboard T3\"",
+    "build": "npm run build --prefix \"Teacher Performance & Task Dashboard T3\"",
+    "start": "npm run start --prefix \"Teacher Performance & Task Dashboard T3\"",
+    "seed": "npm run seed --prefix \"Teacher Performance & Task Dashboard T3\""
+  }
+}
