@@ -37,6 +37,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd "Teacher Performance & Task Dashboard T3"
+          rm -f package-lock.json frontend/package-lock.json backend/package-lock.json
           npm install
 
       - name: Build frontend
