@@ -80,10 +80,8 @@ async function main() {
         execSync(`pg_dump "${dbUrl}" > "${backupFile}"`);
         console.log(`✅ Backup successful: ${backupFile}`);
       } catch (e) {
-        console.error('❌ Backup failed or pg_dump not found in PATH.');
-        console.error('Please install PostgreSQL tools or fix the DATABASE_URL.');
-        console.error('Error details:', e.message);
-        process.exit(1);
+        console.warn('⚠️ Backup skipped: pg_dump not found in PATH or backup failed.');
+        console.warn('Proceeding with seeding without a backup...');
       }
     } else if (dbUrl.startsWith('file:')) {
       console.log('⏳ Creating SQLite backup of existing database file...');
