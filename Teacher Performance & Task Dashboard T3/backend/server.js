@@ -25,7 +25,7 @@ app.use('/api', apiLimiter);
 
 // CORS configuration
 const corsOptions = {
-  origin: ['http://localhost:5173', 'http://localhost:5174'],
+  origin: ['http://localhost:5173', 'http://localhost:5174', 'https://vaitlabilwanath.github.io', 'https://VaitlaBilwanath.github.io'],
   optionsSuccessStatus: 200
 };
 app.use(cors(corsOptions));
