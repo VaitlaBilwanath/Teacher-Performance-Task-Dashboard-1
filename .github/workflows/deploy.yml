@@ -37,7 +37,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd "Teacher Performance & Task Dashboard T3"
-          npm ci
+          npm install
 
       - name: Build frontend
         run: |
