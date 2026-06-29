@@ -37,24 +37,32 @@ const randItem = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const pad = (num, size) => num.toString().padStart(size, '0');
 
-async function main() {
+async function main(options = {}) {
   console.log('--- FirstCry Intellitots Seed Script ---');
 
   // 1. Safety Lock
-  if (process.env.NODE_ENV === 'production') {
-    console.error('❌ Production database detected.');
-    console.error('❌ Seeding aborted. Never overwrite production information.');
-    process.exit(1);
+  if (process.env.NODE_ENV === 'production' && !options.force && process.env.ALLOW_PROD_SEED !== 'true') {
+    const errorMsg = 'Production database detected. Seeding aborted to protect production information.';
+    console.error('❌ ' + errorMsg);
+    if (require.main === module) {
+      process.exit(1);
+    } else {
+      throw new Error(errorMsg);
+    }
   }
 
-  const mode = process.argv.includes('--mode') ? process.argv[process.argv.indexOf('--mode') + 1] : 'demo';
-  const confirm = process.argv.includes('--confirm');
+  const mode = options.mode || (process.argv.includes('--mode') ? process.argv[process.argv.indexOf('--mode') + 1] : 'demo');
+  const confirm = options.confirm || process.argv.includes('--confirm');
 
   if (mode === 'demo') {
     if (!confirm) {
-      console.error('❌ Destructive action detected! You must provide the --confirm flag to proceed.');
-      console.error('Example: npm run seed:demo -- --confirm');
-      process.exit(1);
+      const errorMsg = 'Destructive action detected! You must provide the confirm option to proceed.';
+      console.error('❌ ' + errorMsg);
+      if (require.main === module) {
+        process.exit(1);
+      } else {
+        throw new Error(errorMsg);
+      }
     }
 
     console.log('🔄 Mode: demo. Preparing to clear existing data...');
@@ -62,8 +70,13 @@ async function main() {
     // Backup before deleting
     const dbUrl = process.env.DATABASE_URL;
     if (!dbUrl) {
-      console.error('❌ DATABASE_URL is not defined in .env');
-      process.exit(1);
+      const errorMsg = 'DATABASE_URL is not defined in env';
+      console.error('❌ ' + errorMsg);
+      if (require.main === module) {
+        process.exit(1);
+      } else {
+        throw new Error(errorMsg);
+      }
     }
 
     if (dbUrl.includes('postgresql') || dbUrl.includes('postgres')) {
@@ -87,7 +100,6 @@ async function main() {
       console.log('⏳ Creating SQLite backup of existing database file...');
       try {
         const dbPath = dbUrl.replace('file:', '');
-        // SQLite file is relative to prisma directory or root backend depending on path
         const resolvedDbPath = path.resolve(__dirname, dbPath.startsWith('.') ? dbPath : path.join('..', dbPath));
         if (fs.existsSync(resolvedDbPath)) {
           const backupDir = path.join(__dirname, '../backups');
@@ -123,8 +135,13 @@ async function main() {
   } else if (mode === 'add-sample') {
     console.log('➕ Mode: add-sample. Appending sample data without deleting existing records.');
   } else {
-    console.error(`❌ Unknown mode: ${mode}. Use 'demo' or 'add-sample'.`);
-    process.exit(1);
+    const errorMsg = `Unknown mode: ${mode}. Use 'demo' or 'add-sample'.`;
+    console.error('❌ ' + errorMsg);
+    if (require.main === module) {
+      process.exit(1);
+    } else {
+      throw new Error(errorMsg);
+    }
   }
 
   const defaultPassword = await bcrypt.hash('Password123', 10);
@@ -353,11 +370,16 @@ async function main() {
     });
   }
 
-  // --- Create specific test users required by dbVerify.js ---
-  console.log('⏳ Generating specific test users for dbVerify...');
+  // --- Create specific test users required by dbVerify.js and mockData ---
+  console.log('⏳ Generating specific test users and mock dataset...');
+
   const adminHash = await bcrypt.hash('Binnu2007', 10);
-  const teacherHash = await bcrypt.hash('Prithika123', 10);
-  const parentHash = await bcrypt.hash('neha@1213', 10);
+  const teacherHashPrithika = await bcrypt.hash('Prithika123', 10);
+  const teacherHashVarun = await bcrypt.hash('Varun123', 10);
+  const teacherHashRaju = await bcrypt.hash('Raju123', 10);
+  const parentHashNeha = await bcrypt.hash('neha@1213', 10);
+  const parentHashNani = await bcrypt.hash('Nani123', 10);
+  const parentHashRahul = await bcrypt.hash('Rahul123', 10);
 
   // 1. Admin
   let verifyAdmin = await prisma.user.findFirst({ where: { email: 'vaitlabinnu@gmail.com' } });
@@ -367,106 +389,163 @@ async function main() {
         email: 'vaitlabinnu@gmail.com',
         password: adminHash,
         role: 'ADMIN',
-        name: 'Binnu Vaitla',
+        name: 'Admin Deshmukh',
         phone: '+91 99999 88888',
         isEmailVerified: true
       }
     });
   }
 
-  // 2. Teacher
-  let verifyTeacherUser = await prisma.user.findFirst({ where: { email: 'prithika@gmail.com' } });
-  if (!verifyTeacherUser) {
-    verifyTeacherUser = await prisma.user.create({
-      data: {
-        email: 'prithika@gmail.com',
-        password: teacherHash,
-        role: 'TEACHER',
-        name: 'Prithika Sharma',
-        phone: '+91 98765 22222',
-        isEmailVerified: true
-      }
-    });
-  }
-  let verifyTeacher = await prisma.teacher.findFirst({ where: { userId: verifyTeacherUser.id } });
-  if (!verifyTeacher) {
-    verifyTeacher = await prisma.teacher.create({
-      data: {
-        userId: verifyTeacherUser.id,
-        avatar: 'PS',
-        teacherRegNo: '26EMP1099',
-        employeeId: '26EMP0099',
-        shiftTime: '09:00 AM - 03:00 PM',
-        classroomId: classRecords[0].id,
-        performance: 98.0,
-        attendance: 95.0,
-        tasksCompleted: 45,
-        complianceScore: 92.5
-      }
-    });
-  }
+  // Find or create specific classrooms
+  const getOrCreateClass = async (name, room) => {
+    let cls = await prisma.classroom.findUnique({ where: { name } });
+    if (!cls) {
+      cls = await prisma.classroom.create({ data: { name, roomNumber: room } });
+    }
+    return cls;
+  };
 
-  // 3. Parent
-  let verifyParentUser = await prisma.user.findFirst({ where: { email: 'neha@gmail.com' } });
-  if (!verifyParentUser) {
-    verifyParentUser = await prisma.user.create({
-      data: {
-        email: 'neha@gmail.com',
-        password: parentHash,
-        role: 'PARENT',
-        name: 'Neha Gupta',
-        phone: '+91 98765 33333',
-        isEmailVerified: true
-      }
-    });
-  }
-  let verifyParent = await prisma.parent.findFirst({ where: { userId: verifyParentUser.id } });
-  if (!verifyParent) {
-    verifyParent = await prisma.parent.create({
-      data: {
-        userId: verifyParentUser.id,
-        parentContact: '+91 98765 33333'
-      }
-    });
-  }
-  
-  // Also create a student connected to verifyParent so the parent tests pass
-  let verifyStudent = await prisma.student.findFirst({ where: { parentId: verifyParent.id } });
-  if (!verifyStudent) {
-    verifyStudent = await prisma.student.create({
-      data: {
-        name: 'Aarav Gupta',
-        avatar: 'AG',
-        age: '4 Years, 2 Months',
-        studentRegNo: 'FCI260009999',
-        admissionNo: '261FC10099',
-        classroomId: classRecords[0].id,
-        parentId: verifyParent.id,
-        mood: 'Happy',
-        photoUrl: 'https://ui-avatars.com/api/?name=Aarav+Gupta&background=random',
-        milestones: [
-          { name: 'Language & Speech', progress: 95 },
-          { name: 'Fine Motor Skills', progress: 90 }
-        ],
-        timeline: [
-          { time: '08:00 AM', event: 'Arrival', desc: 'Checked in. Mood: Happy.' }
-        ],
-        notes: [
-          { date: new Date().toISOString().split('T')[0], author: 'System', content: 'Verification student notes.', mood: 'Calm' }
-        ]
-      }
-    });
-  }
+  const playgroupA = await getOrCreateClass('Playgroup A', 'Room 102');
+  const nurseryB = await getOrCreateClass('Nursery B', 'Room 105');
+  const kindergarten1 = await getOrCreateClass('Kindergarten 1', 'Room 201');
 
-  console.log('✅ Interactions generated.');
-  console.log('🎉 Database seeding completed successfully!');
+  // 2. Teachers
+  const createTeacherUser = async (email, password, name, avatar, regNo, empNo, shift, classId) => {
+    let user = await prisma.user.findFirst({ where: { email } });
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email,
+          password,
+          role: 'TEACHER',
+          name,
+          phone: '+91 99999 77777',
+          isEmailVerified: true
+        }
+      });
+    }
+    let teacher = await prisma.teacher.findFirst({ where: { userId: user.id } });
+    if (!teacher) {
+      teacher = await prisma.teacher.create({
+        data: {
+          userId: user.id,
+          avatar,
+          teacherRegNo: regNo,
+          employeeId: empNo,
+          shiftTime: shift,
+          classroomId: classId,
+          performance: 92.0,
+          attendance: 96.0,
+          tasksCompleted: 45,
+          complianceScore: 95.0
+        }
+      });
+    }
+    return teacher;
+  };
+
+  const tPrithika = await createTeacherUser('prithika@gmail.com', teacherHashPrithika, 'Prithika Sharma', 'PS', '26EMP1001', '26EMP0001', '08:00 AM - 02:00 PM', playgroupA.id);
+  const tVarun = await createTeacherUser('varun@gmail.com', teacherHashVarun, 'Varun Mehta', 'VM', '26EMP1002', '26EMP0002', '09:00 AM - 03:00 PM', nurseryB.id);
+  const tRaju = await createTeacherUser('raju@gmail.com', teacherHashRaju, 'Raju Sen', 'RS', '26EMP1003', '26EMP0003', '08:30 AM - 02:30 PM', kindergarten1.id);
+
+  // 3. Parents
+  const createParentUser = async (email, password, name, contact) => {
+    let user = await prisma.user.findFirst({ where: { email } });
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email,
+          password,
+          role: 'PARENT',
+          name,
+          phone: contact,
+          isEmailVerified: true
+        }
+      });
+    }
+    let parent = await prisma.parent.findFirst({ where: { userId: user.id } });
+    if (!parent) {
+      parent = await prisma.parent.create({
+        data: {
+          userId: user.id,
+          parentContact: contact
+        }
+      });
+    }
+    return parent;
+  };
+
+  const pNeha = await createParentUser('neha@gmail.com', parentHashNeha, 'Neha Patel', '+91 98765 43210');
+  const pNani = await createParentUser('Nani@gmail.com', parentHashNani, 'Nani Sen', '+91 98123 45678');
+  const pRahul = await createParentUser('rahul@gmail.com', parentHashRahul, 'Rahul Malhotra', '+91 91234 56789');
+
+  // 4. Students
+  const createStudentUser = async (name, avatar, age, regNo, admNo, classId, parentId) => {
+    let student = await prisma.student.findFirst({ where: { admissionNo: admNo } });
+    if (!student) {
+      student = await prisma.student.create({
+        data: {
+          name,
+          avatar,
+          age,
+          studentRegNo: regNo,
+          admissionNo: admNo,
+          classroomId: classId,
+          parentId: parentId,
+          mood: 'Happy',
+          photoUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
+          milestones: [
+            { name: 'Language & Speech', progress: 85 },
+            { name: 'Fine Motor Skills', progress: 70 },
+            { name: 'Social Interaction', progress: 90 },
+            { name: 'Cognitive Ability', progress: 80 }
+          ],
+          timeline: [
+            { time: '08:00 AM', event: 'Arrival', desc: 'Checked in by parent. Waved goodbye.' },
+            { time: '09:00 AM', event: 'Breakfast', desc: 'Ate 1 bowl of vegetable oats.' }
+          ],
+          notes: [
+            { date: new Date().toISOString().split('T')[0], author: 'System', content: 'Routine initial note.', mood: 'Calm' }
+          ]
+        }
+      });
+    }
+    return student;
+  };
+
+  // Aarav Patel, Kiara Sen, Kabir Malhotra
+  const sAarav = await createStudentUser('Aarav Patel', 'AP', '3 Years, 2 Months', 'FCI260001001', '261FC10001', playgroupA.id, pNeha.id);
+  const sKiara = await createStudentUser('Kiara Sen', 'KS', '2 Years, 11 Months', 'FCI260001002', '261FC10002', playgroupA.id, pNani.id);
+  const sKabir = await createStudentUser('Kabir Malhotra', 'KM', '4 Years, 1 Month', 'FCI260001003', '261FC10003', nurseryB.id, pRahul.id);
+
+  // 5. Tasks
+  const createMockTask = async (title, desc, status, priority, dueDate, assigneeId) => {
+    const existing = await prisma.task.findFirst({ where: { title, assigneeId } });
+    if (!existing) {
+      await prisma.task.create({
+        data: { title, desc, status, priority, dueDate, assigneeId }
+      });
+    }
+  };
+
+  await createMockTask('Curriculum Planning T1', 'Complete Montessori outline.', 'TODO', 'high', '2026-07-20', tPrithika.id);
+  await createMockTask('Monthly Progress Reports', 'Compile progress reports.', 'IN_PROGRESS', 'high', '2026-07-18', tPrithika.id);
+  await createMockTask('Phonics Activity Setup', 'Assemble cardboard letters.', 'TODO', 'medium', '2026-07-22', tRaju.id);
+  await createMockTask('Health & Sanitization Audit', 'Sanitization checks.', 'REVIEW', 'medium', '2026-07-16', tRaju.id);
+  await createMockTask('Parent-Teacher Meet Invites', 'PTM Digital calendars.', 'COMPLETED', 'low', '2026-07-14', tVarun.id);
+
+  console.log('✅ Specific mock accounts and dataset created successfully!');
 }
 
-main()
-  .catch((e) => {
-    console.error('Error during seeding:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+if (require.main === module) {
+  main()
+    .catch((e) => {
+      console.error('Error during seeding:', e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}
+
+module.exports = main;

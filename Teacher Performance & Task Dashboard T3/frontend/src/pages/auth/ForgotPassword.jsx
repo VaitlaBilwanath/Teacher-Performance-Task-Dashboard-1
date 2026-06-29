@@ -17,7 +17,7 @@ const ForgotPassword = () => {
     setError(null);
 
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const baseUrl = import.meta.env.VITE_API_URL || 'https://teacher-performance-task-dashboard-1.onrender.com/api';
       const response = await fetch(`${baseUrl}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

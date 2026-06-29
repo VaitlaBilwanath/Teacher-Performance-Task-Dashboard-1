@@ -48,4 +48,36 @@ router.get('/', async (req, res) => {
   }
 });
 
+const runSeed = require('../../prisma/seed');
+
+router.all('/seed', async (req, res) => {
+  try {
+    const key = req.query.key || req.body?.key;
+    const mode = req.query.mode || req.body?.mode || 'demo';
+    const confirm = req.query.confirm || req.body?.confirm;
+
+    if (key !== 'Binnu2007') {
+      return res.status(403).json({ success: false, message: 'Invalid seed authorization key.' });
+    }
+
+    console.log(`Starting remote seed: mode=${mode}, confirm=${confirm}`);
+    await runSeed({
+      mode: mode,
+      confirm: confirm === 'false' ? false : true,
+      force: true
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Database seeded successfully.'
+    });
+  } catch (error) {
+    console.error('Remote seed failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Seeding failed: ' + error.message
+    });
+  }
+});
+
 module.exports = router;
