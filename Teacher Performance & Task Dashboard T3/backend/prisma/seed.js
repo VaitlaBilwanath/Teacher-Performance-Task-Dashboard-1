@@ -193,8 +193,8 @@ async function main(options = {}) {
         data: {
           userId: user.id,
           avatar: name.split(' ').map(n => n[0]).join(''),
-          teacherRegNo: `26EMP10${pad(i, 2)}`,
-          employeeId: `26EMP00${pad(i, 2)}`,
+          teacherRegNo: `26EMP10${pad(i + 10, 2)}`,
+          employeeId: `26EMP00${pad(i + 10, 2)}`,
           shiftTime: randItem(SHIFTS),
           classroomId: classRecords[i % classRecords.length].id,
           performance: randInt(85, 100),
@@ -234,7 +234,7 @@ async function main(options = {}) {
   const studentRecords = [];
   for (let i = 0; i < STUDENT_NAMES.length; i++) {
     const name = STUDENT_NAMES[i];
-    const admNo = `261FC100${pad(i + 1, 2)}`;
+    const admNo = `261FC100${pad(i + 10, 2)}`;
     let student = await prisma.student.findFirst({ where: { admissionNo: admNo } });
     
     if (!student) {
@@ -246,7 +246,7 @@ async function main(options = {}) {
           name,
           avatar: name.split(' ').map(n => n[0]).join(''),
           age: `${randInt(2, 5)} Years, ${randInt(1, 11)} Months`,
-          studentRegNo: `FCI2600010${pad(i + 1, 2)}`,
+          studentRegNo: `FCI2600010${pad(i + 10, 2)}`,
           admissionNo: admNo,
           classroomId: c.id,
           parentId: p.id,
