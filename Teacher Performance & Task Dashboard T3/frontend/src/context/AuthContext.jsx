@@ -13,24 +13,42 @@ export const AuthProvider = ({ children }) => {
 
   // Automatic online/offline status detection
   useEffect(() => {
+    const HEALTH_URL = 'https://teacher-performance-task-dashboard-1.onrender.com/api/health';
+    let consecutiveFailures = 0;
+
     const checkHealth = async () => {
       if (!navigator.onLine) {
-        setIsOffline(true);
+        consecutiveFailures++;
+        if (consecutiveFailures >= 2) setIsOffline(true);
         return;
       }
       try {
-        const response = await fetch('http://localhost:5000/api/health', { method: 'GET' });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout for Render cold starts
+        const response = await fetch(HEALTH_URL, {
+          method: 'GET',
+          signal: controller.signal,
+          cache: 'no-store',
+        });
+        clearTimeout(timeoutId);
         if (response.ok) {
+          consecutiveFailures = 0;
           setIsOffline(false);
         } else {
-          setIsOffline(true);
+          consecutiveFailures++;
+          if (consecutiveFailures >= 2) setIsOffline(true);
         }
       } catch (err) {
-        setIsOffline(true);
+        consecutiveFailures++;
+        // Only go offline after 2 consecutive failures to avoid false positives
+        if (consecutiveFailures >= 2) setIsOffline(true);
       }
     };
 
-    const handleOnline = () => checkHealth();
+    const handleOnline = () => {
+      consecutiveFailures = 0;
+      checkHealth();
+    };
     const handleOffline = () => setIsOffline(true);
 
     window.addEventListener('online', handleOnline);
@@ -39,8 +57,8 @@ export const AuthProvider = ({ children }) => {
     // Initial check
     checkHealth();
 
-    // Periodic check every 15 seconds
-    const interval = setInterval(checkHealth, 15000);
+    // Periodic check every 45 seconds (less aggressive, kinder to free-tier backend)
+    const interval = setInterval(checkHealth, 45000);
 
     return () => {
       window.removeEventListener('online', handleOnline);
