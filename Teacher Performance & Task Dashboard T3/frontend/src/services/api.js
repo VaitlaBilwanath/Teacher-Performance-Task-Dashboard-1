@@ -19,22 +19,28 @@ API.interceptors.request.use(
   }
 );
 
+let isLoggingOut = false;
+
 // Response interceptor to handle errors globally (like deactivation/session expiration)
 API.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response) {
-      const isLoginRoute = error.config && error.config.url && error.config.url.includes('/auth/login');
+      const isLoginRoute = error.config && error.config.url && (error.config.url.includes('/auth/login') || error.config.url.includes('auth/login'));
       
       if (!isLoginRoute) {
         if (error.response.status === 401) {
           console.warn('Authentication failure or session expired. Logging out.');
-          if (window.location.hash !== '#/') {
+          if (window.location.hash !== '#/' && window.location.hash !== '' && !isLoggingOut) {
+            isLoggingOut = true;
             localStorage.removeItem('token');
             localStorage.removeItem('activeUser');
             localStorage.removeItem('activeRole');
             alert('Session expired. Please login again.');
-            window.location.href = '/';
+            window.location.hash = '#/';
+            setTimeout(() => {
+              isLoggingOut = false;
+            }, 3000);
           }
         } else if (error.response.status === 403) {
           console.warn('Role restriction: User tried to access forbidden resource.');

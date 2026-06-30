@@ -77,8 +77,10 @@ const Messages = () => {
       })
     : [...mockMessagesFallback, ...simulatedMessages];
 
-  const fetchChat = async () => {
-    setIsLoading(true);
+  const fetchChat = async (isInitial = false) => {
+    if (isInitial) {
+      setIsLoading(true);
+    }
     setErrorState(null);
     try {
       const resChild = await parentAPI.getMyChild();
@@ -96,6 +98,9 @@ const Messages = () => {
         setDbMessages(resMsgs.data.data);
       }
     } catch (err) {
+      if (err.response && err.response.status === 401) {
+        return; // Handled globally by axios response interceptor
+      }
       if (import.meta.env.VITE_USE_MOCK_DATA === 'true') {
         console.warn("Using mock fallback", err);
         console.warn("Failed to fetch chat messages via API", err);
@@ -103,13 +108,15 @@ const Messages = () => {
         setErrorState('Unable to connect to the server. Please try again later or contact your system administrator.');
       }
     } finally {
-      setIsLoading(false);
+      if (isInitial) {
+        setIsLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    fetchChat();
-    const interval = setInterval(fetchChat, 5000);
+    fetchChat(true);
+    const interval = setInterval(() => fetchChat(false), 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -133,7 +140,7 @@ const Messages = () => {
         await messageAPI.sendMessage(teacherUserId, inputVal);
         success('Message Sent', 'Sent to Class Mentor.');
         setInputVal('');
-        fetchChat();
+        fetchChat(false);
       } else {
         throw new Error("No teacherUserId found");
       }
@@ -188,7 +195,7 @@ const Messages = () => {
           <AlertCircle size={48} color="var(--danger)" style={{ marginBottom: '15px' }} />
           <h3 style={{ color: 'var(--text-primary)', marginBottom: '10px' }}>Connection Error</h3>
           <p style={{ color: 'var(--text-secondary)', marginBottom: '20px', lineHeight: '1.5' }}>{errorState}</p>
-          <button className="primary-btn" onClick={() => window.location.reload()} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+          <button className="primary-btn" onClick={() => fetchChat(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
             Try Again
           </button>
         </GlassCard>
