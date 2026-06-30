@@ -2,22 +2,39 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNotifications } from '../../context/NotificationContext';
-import { Users, Award, ShieldAlert, Edit2, Phone, Mail, X, Check, Download, AlertCircle } from 'lucide-react';
+import { Users, Award, ShieldAlert, Edit2, Phone, Mail, X, Check, Download, AlertCircle, ChevronDown } from 'lucide-react';
 import GlassCard from '../../components/GlassCard';
 import { mockTeachers } from '../../data/mockData';
 import { adminAPI } from '../../services/api';
 import { exportToCSV, exportToExcel, exportToPDF } from '../../utils/exportUtils';
 import '../../styles/pages.css';
 
+const FALLBACK_CLASSROOMS = [
+  { id: 'c-playgroup-a', name: 'Playgroup A', roomNumber: 'Room 101' },
+  { id: 'c-playgroup-b', name: 'Playgroup B', roomNumber: 'Room 102' },
+  { id: 'c-nursery-a', name: 'Nursery A', roomNumber: 'Room 103' },
+  { id: 'c-nursery-b', name: 'Nursery B', roomNumber: 'Room 104' },
+  { id: 'c-lkg-a', name: 'LKG A', roomNumber: 'Room 105' },
+  { id: 'c-lkg-b', name: 'LKG B', roomNumber: 'Room 106' },
+  { id: 'c-ukg-a', name: 'UKG A', roomNumber: 'Room 107' },
+  { id: 'c-ukg-b', name: 'UKG B', roomNumber: 'Room 108' }
+];
+
+
 const Teachers = () => {
-  const { success } = useNotifications();
+  const { success, error } = useNotifications();
   const [teachers, setTeachers] = useState([]);
   const [classroomsMap, setClassroomsMap] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [errorState, setErrorState] = useState(null);
   const [editingTeacher, setEditingTeacher] = useState(null);
-  const [editClass, setEditClass] = useState('');
   const [editShift, setEditShift] = useState('');
+
+  // Dropdown states
+  const [classroomOptions, setClassroomOptions] = useState([]);
+  const [isClassroomDropdownOpen, setIsClassroomDropdownOpen] = useState(false);
+  const [showValidation, setShowValidation] = useState(false);
+  const [editClassroomId, setEditClassroomId] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [pagination, setPagination] = useState({
     page: 1,
@@ -44,7 +61,8 @@ const Teachers = () => {
           complianceScore: t.complianceScore,
           attendance: t.attendance,
           teacherRegNo: t.teacherRegNo,
-          employeeId: t.employeeId
+          employeeId: t.employeeId,
+          classroomId: t.classroom ? t.classroom.id : ''
         }));
         setTeachers(mapped);
         
@@ -76,6 +94,38 @@ const Teachers = () => {
     fetchTeachers(pagination.page, pagination.limit, searchTerm);
   }, [pagination.page, pagination.limit, searchTerm]);
 
+  useEffect(() => {
+    const fetchClassrooms = async () => {
+      try {
+        const res = await adminAPI.getClassrooms();
+        if (res.data && res.data.success && res.data.data.length > 0) {
+          setClassroomOptions(res.data.data);
+        } else {
+          setClassroomOptions(FALLBACK_CLASSROOMS);
+        }
+      } catch (err) {
+        console.error('Failed to fetch classrooms, using local fallback', err);
+        setClassroomOptions(FALLBACK_CLASSROOMS);
+      }
+    };
+    fetchClassrooms();
+  }, []);
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('.custom-dropdown-container')) {
+        setIsClassroomDropdownOpen(false);
+      }
+    };
+    if (isClassroomDropdownOpen) {
+      document.addEventListener('click', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [isClassroomDropdownOpen]);
+
   const handleSearch = (e) => {
     e.preventDefault();
     fetchTeachers(1, pagination.limit, searchTerm);
@@ -89,29 +139,59 @@ const Teachers = () => {
 
   const handleEditClick = (teacher) => {
     setEditingTeacher(teacher);
-    setEditClass(teacher.assignedClass);
+    setEditClassroomId(teacher.classroomId || '');
     setEditShift(teacher.shiftTime);
+    setIsClassroomDropdownOpen(false);
+    setShowValidation(false);
   };
 
   const handleSaveEdit = async (e) => {
     e.preventDefault();
+    if (!editClassroomId) {
+      setShowValidation(true);
+      error('Validation Error', 'Please select an assigned class.');
+      return;
+    }
+
     try {
-      const cid = classroomsMap[editClass.toLowerCase()] || null;
       await adminAPI.updateTeacher(editingTeacher.id, {
-        classroomId: cid,
+        classroomId: editClassroomId,
         shiftTime: editShift,
         name: editingTeacher.name
       });
       success('Teacher Reassigned', `Updated details for ${editingTeacher.name}.`);
       setEditingTeacher(null);
-      fetchTeachers();
+      fetchTeachers(pagination.page, pagination.limit, searchTerm);
     } catch (err) {
       console.warn("Failed to update teacher via API. Falling back to local state.", err);
+      // Resolve classroom details
+      const selectedClassroomObj = classroomOptions.find(c => c.id === editClassroomId);
+      const resolvedClassName = selectedClassroomObj ? selectedClassroomObj.name : 'Not Allocated';
+      const resolvedRoomNumber = selectedClassroomObj ? selectedClassroomObj.roomNumber : 'N/A';
+
+      // Update in localStorage fallback
+      const editedTeachers = JSON.parse(localStorage.getItem('editedTeachers') || '[]');
+      const filteredEdits = editedTeachers.filter(et => et.id !== editingTeacher.id);
+      localStorage.setItem('editedTeachers', JSON.stringify([
+        ...filteredEdits,
+        {
+          id: editingTeacher.id,
+          name: editingTeacher.name,
+          assignedClass: resolvedClassName,
+          roomNumber: resolvedRoomNumber,
+          classroomId: editClassroomId,
+          shiftTime: editShift
+        }
+      ]));
+
+      // Update local state
       setTeachers(prev => prev.map(t => {
         if (t.id === editingTeacher.id) {
           return {
             ...t,
-            assignedClass: editClass,
+            assignedClass: resolvedClassName,
+            roomNumber: resolvedRoomNumber,
+            classroomId: editClassroomId,
             shiftTime: editShift
           };
         }
@@ -430,12 +510,60 @@ const Teachers = () => {
               <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
                 <div className="login-form-group">
                   <label>Assigned Class</label>
-                  <input
-                    type="text"
-                    className="input-glass"
-                    value={editClass}
-                    onChange={(e) => setEditClass(e.target.value)}
-                  />
+                  <div className="custom-dropdown-container">
+                    <button
+                      type="button"
+                      className={`custom-dropdown-trigger ${isClassroomDropdownOpen ? 'open' : ''}`}
+                      onClick={() => setIsClassroomDropdownOpen(!isClassroomDropdownOpen)}
+                    >
+                      <span>
+                        {editClassroomId 
+                          ? (classroomOptions.find(c => c.id === editClassroomId)?.name || editClassroomId) 
+                          : '-- Select Classroom --'}
+                      </span>
+                      <ChevronDown size={18} className={`custom-dropdown-arrow ${isClassroomDropdownOpen ? 'open' : ''}`} />
+                    </button>
+                    <AnimatePresence>
+                      {isClassroomDropdownOpen && (
+                        <motion.ul 
+                          className="custom-dropdown-menu"
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <li 
+                            className={`custom-dropdown-option ${!editClassroomId ? 'selected' : ''}`}
+                            onClick={() => {
+                              setEditClassroomId('');
+                              setIsClassroomDropdownOpen(false);
+                            }}
+                          >
+                            -- Select Classroom --
+                          </li>
+                          {classroomOptions.map(c => (
+                            <li
+                              key={c.id}
+                              className={`custom-dropdown-option ${editClassroomId === c.id ? 'selected' : ''}`}
+                              onClick={() => {
+                                setEditClassroomId(c.id);
+                                setIsClassroomDropdownOpen(false);
+                                setShowValidation(false);
+                              }}
+                            >
+                              <span>{c.name}</span>
+                              <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{c.roomNumber}</span>
+                            </li>
+                          ))}
+                        </motion.ul>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                  {showValidation && !editClassroomId && (
+                    <div className="dropdown-validation-error">
+                      <AlertCircle size={14} /> Please select an assigned class.
+                    </div>
+                  )}
                 </div>
 
                 <div className="login-form-group">

@@ -6,8 +6,9 @@ const path = require('path');
 const prisma = require('../src/config/prisma');
 
 // Configuration
-const CLASSROOMS = ['Playgroup A', 'Nursery A', 'Nursery B', 'Kindergarten 1', 'Kindergarten 2', 'Toddlers C'];
+const CLASSROOMS = ['Playgroup A', 'Playgroup B', 'Nursery A', 'Nursery B', 'LKG A', 'LKG B', 'UKG A', 'UKG B'];
 const SHIFTS = ['08:00 AM - 02:00 PM', '08:30 AM - 02:30 PM', '09:00 AM - 03:00 PM', '09:30 AM - 03:30 PM'];
+
 
 const TEACHER_NAMES = [
   'Prithika Sharma', 'Varun Mehta', 'Raju Sen', 'Neha Gupta', 'Vikram Malhotra',

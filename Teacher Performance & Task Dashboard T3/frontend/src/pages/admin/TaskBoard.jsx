@@ -164,10 +164,10 @@ const TaskBoard = () => {
     <div className="page-container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-xl)' }}>
         <div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '5px' }}>Kanban Task Board</h2>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '5px' }}>Task Board</h2>
           <p style={{ color: 'var(--text-secondary)' }}>Manage and assign operational tasks to teachers</p>
         </div>
-        <button className="primary-btn" onClick={() => setIsModalOpen(true)}>
+        <button className="btn-premium" onClick={() => setIsModalOpen(true)}>
           <Plus size={18} />
           Create Task
         </button>
@@ -262,13 +262,13 @@ const TaskBoard = () => {
 
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal-content glass-panel" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content task-board-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Create New Task</h3>
               <button className="icon-btn" onClick={() => setIsModalOpen(false)}><X size={20} /></button>
             </div>
             
-            <form onSubmit={handleAddTask} className="modal-body">
+            <form onSubmit={handleAddTask}>
               <div className="form-group">
                 <label>Task Title</label>
                 <input 
@@ -276,7 +276,7 @@ const TaskBoard = () => {
                   value={newTitle} 
                   onChange={(e) => setNewTitle(e.target.value)} 
                   placeholder="E.g., Update Lesson Plans"
-                  className="glass-input" 
+                  className="task-modal-input" 
                 />
               </div>
               
@@ -286,18 +286,18 @@ const TaskBoard = () => {
                   value={newDesc} 
                   onChange={(e) => setNewDesc(e.target.value)} 
                   placeholder="Provide specific instructions..."
-                  className="glass-input" 
+                  className="task-modal-input" 
                   rows="3"
                 ></textarea>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+              <div className="task-form-grid">
                 <div className="form-group">
                   <label>Assign To</label>
                   <select 
                     value={newAssignee} 
                     onChange={(e) => setNewAssignee(e.target.value)} 
-                    className="glass-input"
+                    className="task-modal-input"
                   >
                     {teachers.map(t => (
                       <option key={t.id} value={t.id}>{t.user?.name}</option>
@@ -310,7 +310,7 @@ const TaskBoard = () => {
                   <select 
                     value={newPriority} 
                     onChange={(e) => setNewPriority(e.target.value)} 
-                    className="glass-input"
+                    className="task-modal-input"
                   >
                     <option value="low">Low Priority</option>
                     <option value="medium">Medium Priority</option>
@@ -325,15 +325,15 @@ const TaskBoard = () => {
                   type="date" 
                   value={newDate} 
                   onChange={(e) => setNewDate(e.target.value)} 
-                  className="glass-input" 
+                  className="task-modal-input" 
                 />
               </div>
               
-              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-                <button type="button" className="secondary-btn" onClick={() => setIsModalOpen(false)} style={{ flex: 1 }}>
+              <div className="task-form-actions">
+                <button type="button" className="btn-glass" onClick={() => setIsModalOpen(false)}>
                   Cancel
                 </button>
-                <button type="submit" className="primary-btn" style={{ flex: 1 }}>
+                <button type="submit" className="btn-premium">
                   Assign Task
                 </button>
               </div>

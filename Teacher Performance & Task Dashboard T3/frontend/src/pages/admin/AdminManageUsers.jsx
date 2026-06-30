@@ -4,9 +4,21 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNotifications } from '../../context/NotificationContext';
 import { refreshMockData, mockTeachers as mockTeachersImported, mockChildren as mockChildrenImported, mockAccounts } from '../../data/mockData';
 import { adminAPI } from '../../services/api';
-import { Users, UserPlus, Trash2, Edit2, X, Check, Search, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Users, UserPlus, Trash2, Edit2, X, Check, Search, ShieldCheck, AlertCircle, ChevronDown } from 'lucide-react';
 import GlassCard from '../../components/GlassCard';
 import '../../styles/pages.css';
+
+const FALLBACK_CLASSROOMS = [
+  { id: 'c-playgroup-a', name: 'Playgroup A', roomNumber: 'Room 101' },
+  { id: 'c-playgroup-b', name: 'Playgroup B', roomNumber: 'Room 102' },
+  { id: 'c-nursery-a', name: 'Nursery A', roomNumber: 'Room 103' },
+  { id: 'c-nursery-b', name: 'Nursery B', roomNumber: 'Room 104' },
+  { id: 'c-lkg-a', name: 'LKG A', roomNumber: 'Room 105' },
+  { id: 'c-lkg-b', name: 'LKG B', roomNumber: 'Room 106' },
+  { id: 'c-ukg-a', name: 'UKG A', roomNumber: 'Room 107' },
+  { id: 'c-ukg-b', name: 'UKG B', roomNumber: 'Room 108' }
+];
+
 
 const AdminManageUsers = () => {
   const { success, error, warning } = useNotifications();
@@ -41,6 +53,10 @@ const AdminManageUsers = () => {
   const [employeeId, setEmployeeId] = useState('');
   const [studentRegNo, setStudentRegNo] = useState('');
   const [admissionNo, setAdmissionNo] = useState('');
+
+  // Custom dropdown and validation states
+  const [isClassroomDropdownOpen, setIsClassroomDropdownOpen] = useState(false);
+  const [showValidation, setShowValidation] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
   const [errorState, setErrorState] = useState(null);
@@ -84,11 +100,14 @@ const AdminManageUsers = () => {
       // Fetch classrooms
       try {
         const resClassrooms = await adminAPI.getClassrooms();
-        if (resClassrooms.data && resClassrooms.data.success) {
+        if (resClassrooms.data && resClassrooms.data.success && resClassrooms.data.data.length > 0) {
           setClassroomOptions(resClassrooms.data.data);
+        } else {
+          setClassroomOptions(FALLBACK_CLASSROOMS);
         }
       } catch (err) {
-        console.error('Failed to fetch classrooms', err);
+        console.error('Failed to fetch classrooms, using local fallback', err);
+        setClassroomOptions(FALLBACK_CLASSROOMS);
       }
 
       // Fetch students
@@ -165,6 +184,21 @@ const AdminManageUsers = () => {
     };
   }, []);
 
+  // Handle click outside to close classroom dropdown
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('.custom-dropdown-container')) {
+        setIsClassroomDropdownOpen(false);
+      }
+    };
+    if (isClassroomDropdownOpen) {
+      document.addEventListener('click', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [isClassroomDropdownOpen]);
+
   const isFormDirty = () => {
     return name.trim() !== '' || 
            email.trim() !== '' || 
@@ -237,6 +271,8 @@ const AdminManageUsers = () => {
     setEmployeeId('');
     setStudentRegNo('');
     setAdmissionNo('');
+    setIsClassroomDropdownOpen(false);
+    setShowValidation(false);
     if (mockTeachers.length > 0) {
       setAssignedTeacherId(mockTeachers[0].id);
     }
@@ -293,6 +329,7 @@ const AdminManageUsers = () => {
     try {
       if (activeTab === 'teacher') {
         if (!classroomId) {
+          setShowValidation(true);
           error('Validation Error', 'Please select an assigned class.');
           return;
         }
@@ -369,20 +406,25 @@ const AdminManageUsers = () => {
           finalEmpId = `26EMP${String(nextIndex).padStart(4, '0')}`;
         }
 
+        const selectedClassroomObj = classroomOptions.find(c => c.id === classroomId);
+        const resolvedClassName = selectedClassroomObj ? selectedClassroomObj.name : 'Unassigned';
+        const resolvedRoomNumber = selectedClassroomObj ? selectedClassroomObj.roomNumber : 'N/A';
+
         const newTeacherEntity = {
           id: `t_${Date.now()}`,
           name: nameTrimmed,
           avatar: nameTrimmed.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
-          assignedClass: assignedClass.trim() || 'Unassigned',
+          assignedClass: resolvedClassName,
           shiftTime: '08:00 AM - 02:00 PM',
-          roomNumber: 'Room ' + Math.floor(Math.random() * 200 + 101),
+          roomNumber: resolvedRoomNumber,
           email: emailTrimmed,
           performance: 90,
           attendance: 95,
           tasksCompleted: 0,
           complianceScore: 90,
           teacherRegNo: finalRegNo,
-          employeeId: finalEmpId
+          employeeId: finalEmpId,
+          classroomId: classroomId
         };
         
         localStorage.setItem('localUsers', JSON.stringify([...JSON.parse(localStorage.getItem('localUsers') || '[]'), newUser]));
@@ -481,6 +523,7 @@ const AdminManageUsers = () => {
     try {
       if (type === 'teacher') {
         if (!classroomId) {
+          setShowValidation(true);
           error('Validation Error', 'Please select an assigned class.');
           return;
         }
@@ -545,10 +588,16 @@ const AdminManageUsers = () => {
         const editedTeachers = JSON.parse(localStorage.getItem('editedTeachers') || '[]');
         const teacherIsLocal = localTeachers.some(t => t.id === user.id);
 
+        const selectedClassroomObj = classroomOptions.find(c => c.id === classroomId);
+        const resolvedClassName = selectedClassroomObj ? selectedClassroomObj.name : 'Unassigned';
+        const resolvedRoomNumber = selectedClassroomObj ? selectedClassroomObj.roomNumber : 'N/A';
+
         const updatedFields = {
           name: nameTrimmed,
           email: emailTrimmed,
-          assignedClass: assignedClass.trim() || 'Unassigned'
+          assignedClass: resolvedClassName,
+          roomNumber: resolvedRoomNumber,
+          classroomId: classroomId
         };
 
         if (teacherIsLocal) {
@@ -979,16 +1028,60 @@ const AdminManageUsers = () => {
                 {activeTab === 'teacher' ? (
                   <div className="login-form-group">
                     <label>Assigned Class</label>
-                    <select
-                      className="input-glass"
-                      value={classroomId}
-                      onChange={(e) => setClassroomId(e.target.value)}
-                    >
-                      <option value="">-- Select Classroom --</option>
-                      {classroomOptions.map(c => (
-                        <option key={c.id} value={c.id}>{c.name} - {c.roomNumber}</option>
-                      ))}
-                    </select>
+                    <div className="custom-dropdown-container">
+                      <button
+                        type="button"
+                        className={`custom-dropdown-trigger ${isClassroomDropdownOpen ? 'open' : ''}`}
+                        onClick={() => setIsClassroomDropdownOpen(!isClassroomDropdownOpen)}
+                      >
+                        <span>
+                          {classroomId 
+                            ? (classroomOptions.find(c => c.id === classroomId)?.name || classroomId) 
+                            : '-- Select Classroom --'}
+                        </span>
+                        <ChevronDown size={18} className={`custom-dropdown-arrow ${isClassroomDropdownOpen ? 'open' : ''}`} />
+                      </button>
+                      <AnimatePresence>
+                        {isClassroomDropdownOpen && (
+                          <motion.ul 
+                            className="custom-dropdown-menu"
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <li 
+                              className={`custom-dropdown-option ${!classroomId ? 'selected' : ''}`}
+                              onClick={() => {
+                                setClassroomId('');
+                                setIsClassroomDropdownOpen(false);
+                              }}
+                            >
+                              -- Select Classroom --
+                            </li>
+                            {classroomOptions.map(c => (
+                              <li
+                                key={c.id}
+                                className={`custom-dropdown-option ${classroomId === c.id ? 'selected' : ''}`}
+                                onClick={() => {
+                                  setClassroomId(c.id);
+                                  setIsClassroomDropdownOpen(false);
+                                  setShowValidation(false);
+                                }}
+                              >
+                                <span>{c.name}</span>
+                                <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{c.roomNumber}</span>
+                              </li>
+                            ))}
+                          </motion.ul>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                    {showValidation && !classroomId && (
+                      <div className="dropdown-validation-error">
+                        <AlertCircle size={14} /> Please select an assigned class.
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <>
@@ -1151,16 +1244,60 @@ const AdminManageUsers = () => {
                 {editingUser.type === 'teacher' ? (
                   <div className="login-form-group">
                     <label>Assigned Class</label>
-                    <select
-                      className="input-glass"
-                      value={classroomId}
-                      onChange={(e) => setClassroomId(e.target.value)}
-                    >
-                      <option value="">-- Select Classroom --</option>
-                      {classroomOptions.map(c => (
-                        <option key={c.id} value={c.id}>{c.name} - {c.roomNumber}</option>
-                      ))}
-                    </select>
+                    <div className="custom-dropdown-container">
+                      <button
+                        type="button"
+                        className={`custom-dropdown-trigger ${isClassroomDropdownOpen ? 'open' : ''}`}
+                        onClick={() => setIsClassroomDropdownOpen(!isClassroomDropdownOpen)}
+                      >
+                        <span>
+                          {classroomId 
+                            ? (classroomOptions.find(c => c.id === classroomId)?.name || classroomId) 
+                            : '-- Select Classroom --'}
+                        </span>
+                        <ChevronDown size={18} className={`custom-dropdown-arrow ${isClassroomDropdownOpen ? 'open' : ''}`} />
+                      </button>
+                      <AnimatePresence>
+                        {isClassroomDropdownOpen && (
+                          <motion.ul 
+                            className="custom-dropdown-menu"
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <li 
+                              className={`custom-dropdown-option ${!classroomId ? 'selected' : ''}`}
+                              onClick={() => {
+                                setClassroomId('');
+                                setIsClassroomDropdownOpen(false);
+                              }}
+                            >
+                              -- Select Classroom --
+                            </li>
+                            {classroomOptions.map(c => (
+                              <li
+                                key={c.id}
+                                className={`custom-dropdown-option ${classroomId === c.id ? 'selected' : ''}`}
+                                onClick={() => {
+                                  setClassroomId(c.id);
+                                  setIsClassroomDropdownOpen(false);
+                                  setShowValidation(false);
+                                }}
+                              >
+                                <span>{c.name}</span>
+                                <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{c.roomNumber}</span>
+                              </li>
+                            ))}
+                          </motion.ul>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                    {showValidation && !classroomId && (
+                      <div className="dropdown-validation-error">
+                        <AlertCircle size={14} /> Please select an assigned class.
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <>
